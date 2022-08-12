@@ -25,11 +25,11 @@ REFLACX
 """
 
 DEFAULT_REFLACX_LABEL_COLS: List[str] = [
-    "Enlarged cardiac silhouette",
+    # "Enlarged cardiac silhouette",
     "Atelectasis",
     "Pleural abnormality",
     "Consolidation",
-    "Pulmonary edema",
+    # "Pulmonary edema",
     #  'Groundglass opacity', #6th disease.
 ]
 
@@ -83,6 +83,7 @@ DEFAULT_REFLACX_BOX_COORD_COLS: List[str] = ["xmin", "ymin", "xmax", "ymax"]
 DEFAULT_REFLACX_BOX_FIX_COLS: List[str] = DEFAULT_REFLACX_BOX_COORD_COLS + ["certainty"]
 DEFAULT_REFLACX_PATH_COLS : List[str]= [
     "image_path",
+    "fixations_path",
     "anomaly_location_ellipses_path",
     "bbox_paths",
 ]

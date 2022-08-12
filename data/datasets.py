@@ -39,6 +39,7 @@ class ReflacxDataset(data.Dataset):
     - `reflacx_cxr.csv`
     - `reflacx_with_clinical.csv`
     - `reflacx_u_df.csv`
+    - `reflacx_with_fixations.csv`
 
     """
 
@@ -50,8 +51,6 @@ class ReflacxDataset(data.Dataset):
         split_str: str = None,
         transforms: Callable[[Image.Image, Dict], Tuple[torch.Tensor, Dict]] = None,
         dataset_mode: str = "normal",
-        clinical_numerical_cols: List[str] = DEFAULT_MIMIC_CLINICAL_NUM_COLS,
-        clinical_categorical_cols: List[str] = DEFAULT_MIMIC_CLINICAL_CAT_COLS,
         labels_cols: List[str] = DEFAULT_REFLACX_LABEL_COLS,
         all_disease_cols: List[str] = DEFAULT_REFLACX_ALL_DISEASES,
         repetitive_label_map: Dict[
@@ -60,7 +59,6 @@ class ReflacxDataset(data.Dataset):
         box_fix_cols: List[str] = DEFAULT_REFLACX_BOX_FIX_COLS,
         box_coord_cols: List[str] = DEFAULT_REFLACX_BOX_COORD_COLS,
         path_cols: List[str] = DEFAULT_REFLACX_PATH_COLS,
-        normalise_clinical_num=False,
         spreadsheets_folder=SPREADSHEET_FOLDER,
     ):
         # Data loading selections
@@ -72,7 +70,6 @@ class ReflacxDataset(data.Dataset):
             [Image.Image, Dict], Tuple[torch.Tensor, Dict]
         ] = transforms
         self.path_cols: List[str] = path_cols
-        self.normalise_clinical_num = normalise_clinical_num
 
         # Labels
         self.labels_cols: List[str] = labels_cols
@@ -93,27 +90,13 @@ class ReflacxDataset(data.Dataset):
 
         elif self.dataset_mode == "normal":
             self.df: pd.DataFrame = pd.read_csv(
-                os.path.join(spreadsheets_folder, "reflacx_with_clinical.csv"),
+                os.path.join(spreadsheets_folder, "reflacx_with_fixations.csv"),
                 index_col=0,
             )
         elif self.dataset_mode == "unified":
             self.df: pd.DataFrame = pd.read_csv(
                 os.path.join(spreadsheets_folder, "reflacx_u_df.csv"), index_col=0
             )
-
-        # determine if using clinical data.
-        if self.with_clinical:
-            ## initialise clinical fields.
-            self.clinical_numerical_cols: List[str] = clinical_numerical_cols
-            self.clinical_categorical_cols: List[str] = clinical_categorical_cols
-            self.clinical_cols: List[
-                str
-            ] = clinical_numerical_cols + clinical_categorical_cols
-            self.clinical_num_norm: StandardScaler = StandardScaler().fit(
-                self.df[self.clinical_numerical_cols]
-            )
-
-            self.preprocess_clinical_df()
 
         ## Split dataset.
         if not self.split_str is None:
@@ -147,15 +130,6 @@ class ReflacxDataset(data.Dataset):
         self.preprocess_label()
 
         super(ReflacxDataset, self).__init__()
-
-    def preprocess_clinical_df(self,):
-        self.encoders_map: Dict[str, LabelEncoder] = {}
-
-        # encode the categorical cols.
-        for col in self.clinical_categorical_cols:
-            le = LabelEncoder()
-            self.df[col] = le.fit_transform(self.df[col])
-            self.encoders_map[col] = le
 
     def preprocess_label(self,):
         self.df[self.all_disease_cols] = self.df[self.all_disease_cols].gt(0)
@@ -215,7 +189,9 @@ class ReflacxDataset(data.Dataset):
         # find the df
         data: pd.Series = self.df.iloc[idx]
 
+        # convert images to rgb
         img: Image = Image.open(data["image_path"]).convert("RGB")
+        fix: Image = Image.open(data["fixations_path"]).convert("RGB")
 
         ## Get bounding boxes.
         if self.dataset_mode == "unified":
@@ -254,6 +230,7 @@ class ReflacxDataset(data.Dataset):
         target["iscrowd"] = iscrowd
         target["dicom_id"] = data["dicom_id"]
         target["image_path"] = data["image_path"]
+        target['fixations_path'] = data["fixations_path"]
 
         if self.bbox_to_mask:
             # generate masks from bboxes
@@ -264,31 +241,9 @@ class ReflacxDataset(data.Dataset):
             target["masks"] = masks
 
         img_t, target = self.transforms(img, target)
+        fix_t, target = self.transforms(fix, target)
 
-        if self.with_clinical:
-            if self.normalise_clinical_num:
-                clinical_num = (
-                    torch.tensor(
-                        self.clinical_num_norm.transform(
-                            np.array([data[self.clinical_numerical_cols]])
-                        ),
-                        dtype=float,
-                    )
-                    .float()
-                    .squeeze()
-                )
-            else:
-                clinical_num = torch.tensor(
-                    np.array(data[self.clinical_numerical_cols], dtype=float)
-                ).float()
-
-            clinical_cat = torch.tensor(
-                np.array(data[self.clinical_categorical_cols], dtype=int)
-            )
-
-            return img_t, clinical_num, clinical_cat, target
-
-        return img_t, target
+        return img_t, fix_t, target
 
     def prepare_input_from_data(
         self,
@@ -302,23 +257,13 @@ class ReflacxDataset(data.Dataset):
         Tuple[torch.Tensor, Dict],
     ]:
 
-        if self.with_clinical:
-            imgs, clinical_num, clinical_cat, targets = data
+        imgs, fixs, targets = data
 
-            imgs = list(img.to(device) for img in imgs)
-            clinical_num = [t.to(device) for t in clinical_num]
-            clinical_cat = [t.to(device) for t in clinical_cat]
-            targets = [map_target_to_device(t, device) for t in targets]
+        imgs = list(img.to(device) for img in imgs)
+        fixs = list(fix.to(device) for fix in fixs)
+        targets = [map_target_to_device(t, device) for t in targets]
 
-            return (imgs, clinical_num, clinical_cat, targets)
-
-        else:
-            imgs, targets = data
-
-            imgs = list(img.to(device) for img in imgs)
-            targets = [map_target_to_device(t, device) for t in targets]
-
-            return (imgs, targets)
+        return (imgs, fixs, targets)
 
     def get_idxs_from_dicom_id(self, dicom_id: str) -> List[str]:
         return [
@@ -328,68 +273,3 @@ class ReflacxDataset(data.Dataset):
 
     def get_image_path_from_dicom_id(self, dicom_id: str) -> List[str]:
         return self.df[self.df["dicom_id"] == dicom_id].iloc[0]["image_path"]
-
-
-class OurRadiologsitsDataset(data.Dataset):
-    def __init__(self, original_dataset: ReflacxDataset, radiologists_anns: Dict):
-        self.original_dataset = original_dataset
-        self.radiologists_anns = radiologists_anns
-        self.with_clinical = self.original_dataset.with_clinical
-
-        super(OurRadiologsitsDataset, self).__init__()
-
-    def __len__(self) -> int:
-        return len(self.radiologists_anns)
-
-    def __getitem__(
-        self, idx: int
-    ) -> Union[
-        Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Dict],
-        Tuple[torch.Tensor, Dict],
-    ]:
-        ann: Dict = deepcopy(self.radiologists_anns[idx])
-
-        idx = self.original_dataset.get_idxs_from_dicom_id(ann["dicom_id"])[0]
-
-        data: pd.Series = deepcopy(self.original_dataset[idx])
-        # target = data[-1]
-
-        bboxes = ann["boxes"]
-        area = (bboxes[:, 3] - bboxes[:, 1]) * (bboxes[:, 2] - bboxes[:, 0])
-
-        num_objs = bboxes.shape[0]
-
-        ann["image_id"] = torch.tensor([idx])
-        ann["area"] = area
-        ann["iscrowd"] = torch.zeros((num_objs,), dtype=torch.int64)
-
-        img = Image.open(ann["image_path"]).convert("RGB")
-        masks = torch.zeros((num_objs, img.height, img.width), dtype=torch.uint8)
-        for i, b in enumerate(bboxes):
-            b = b.int()
-            masks[i, b[1] : b[3], b[0] : b[2]] = 1
-            ann["masks"] = masks
-
-        data = [*data[:-1], ann]
-
-        return data
-
-    def prepare_input_from_data(self, data, device):
-
-        if self.with_clinical:
-            imgs, clinical_num, clinical_cat, targets = data
-
-            imgs = list(img.to(device) for img in imgs)
-            clinical_num = [t.to(device) for t in clinical_num]
-            clinical_cat = [t.to(device) for t in clinical_cat]
-            targets = [map_target_to_device(t, device) for t in targets]
-
-            return (imgs, clinical_num, clinical_cat, targets)
-
-        else:
-            imgs, targets = data
-
-            imgs = list(img.to(device) for img in imgs)
-            targets = [map_target_to_device(t, device) for t in targets]
-
-            return (imgs, targets)
