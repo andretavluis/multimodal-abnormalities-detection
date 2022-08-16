@@ -7,18 +7,14 @@ import pandas as pd
 import numpy as np
 import torch.utils.data as data
 
-from sklearn.preprocessing import StandardScaler
 from typing import Callable, Dict, List, Tuple, Union
 from pathlib import Path
-from sklearn.preprocessing import LabelEncoder
 from PIL import Image
 from copy import deepcopy
 from sklearn.preprocessing import LabelEncoder
 from .constants import (
     DEFAULT_REFLACX_BOX_COORD_COLS,
     DEFAULT_REFLACX_BOX_FIX_COLS,
-    DEFAULT_MIMIC_CLINICAL_CAT_COLS,
-    DEFAULT_MIMIC_CLINICAL_NUM_COLS,
     DEFAULT_REFLACX_ALL_DISEASES,
     DEFAULT_REFLACX_LABEL_COLS,
     DEFAULT_REFLACX_PATH_COLS,
@@ -26,6 +22,7 @@ from .constants import (
     SPREADSHEET_FOLDER,
 )
 from .helpers import map_target_to_device
+from .fixation import get_fixations_dict_from_fixation_df, get_heatmap
 
 
 def collate_fn(batch: Tuple) -> Tuple:
@@ -46,7 +43,7 @@ class ReflacxDataset(data.Dataset):
     def __init__(
         self,
         XAMI_MIMIC_PATH: str,
-        with_clinical: bool = False,
+        with_fixation: bool = False,
         bbox_to_mask: bool = False,
         split_str: str = None,
         transforms: Callable[[Image.Image, Dict], Tuple[torch.Tensor, Dict]] = None,
@@ -62,7 +59,7 @@ class ReflacxDataset(data.Dataset):
         spreadsheets_folder=SPREADSHEET_FOLDER,
     ):
         # Data loading selections
-        self.with_clinical: bool = with_clinical
+        self.with_fixation = with_fixation
         self.split_str: str = split_str
 
         # Image related
@@ -80,23 +77,10 @@ class ReflacxDataset(data.Dataset):
         self.bbox_to_mask: bool = bbox_to_mask
         self.dataset_mode: str = dataset_mode
 
-        if self.dataset_mode == "full":
-            assert (
-                self.with_clinical == False
-            ), "The full REFLACX dataset doesn't come with identified stayId; hence, it can't be used with clincal data."
-            self.df: pd.DataFrame = pd.read_csv(
-                os.path.join(spreadsheets_folder, "reflacx_cxr.csv"), index_col=0
-            )
-
-        elif self.dataset_mode == "normal":
-            self.df: pd.DataFrame = pd.read_csv(
-                os.path.join(spreadsheets_folder, "reflacx_with_fixations.csv"),
-                index_col=0,
-            )
-        elif self.dataset_mode == "unified":
-            self.df: pd.DataFrame = pd.read_csv(
-                os.path.join(spreadsheets_folder, "reflacx_u_df.csv"), index_col=0
-            )
+        # load dataframe
+        self.df: pd.DataFrame = pd.read_csv(
+            os.path.join(spreadsheets_folder, "reflacx_for_eyetracking.csv"), index_col=0
+        )
 
         ## Split dataset.
         if not self.split_str is None:
@@ -191,18 +175,11 @@ class ReflacxDataset(data.Dataset):
 
         # convert images to rgb
         img: Image = Image.open(data["image_path"]).convert("RGB")
-        fix: Image = Image.open(data["fixations_path"]).convert("RGB")
 
         ## Get bounding boxes.
-        if self.dataset_mode == "unified":
-            bboxes_df = pd.concat(
-                [self.generate_bboxes_df(pd.read_csv(p)) for p in data["bbox_paths"]],
-                axis=0,
-            )
-        else:
-            bboxes_df = self.generate_bboxes_df(
-                pd.read_csv(data["anomaly_location_ellipses_path"])
-            )
+        bboxes_df = self.generate_bboxes_df(
+            pd.read_csv(data["anomaly_location_ellipses_path"])
+        )
         bboxes = torch.tensor(
             np.array(bboxes_df[self.box_coord_cols], dtype=float)
         )  # x1, y1, x2, y2
@@ -230,7 +207,7 @@ class ReflacxDataset(data.Dataset):
         target["iscrowd"] = iscrowd
         target["dicom_id"] = data["dicom_id"]
         target["image_path"] = data["image_path"]
-        target['fixations_path'] = data["fixations_path"]
+        target["fixations_path"] = data["fixations_path"]
 
         if self.bbox_to_mask:
             # generate masks from bboxes
@@ -240,10 +217,19 @@ class ReflacxDataset(data.Dataset):
                 masks[i, b[1] : b[3], b[0] : b[2]] = 1
             target["masks"] = masks
 
-        img_t, target = self.transforms(img, target)
-        fix_t, target = self.transforms(fix, target)
+            
+        if self.with_fixation:
+            # get fixatinos
+            fix = get_heatmap(
+                get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"])),
+                (data["image_size_x"], data["image_size_y"]),
+            ).astype(np.float32)
+            img_t, target, fix_t = self.transforms(img, target, fix)
+            return img_t, fix_t.repeat(3, 1, 1), target
 
-        return img_t, fix_t, target
+        img_t, target = self.transforms(img, target)
+
+        return img_t, target
 
     def prepare_input_from_data(
         self,
@@ -256,14 +242,21 @@ class ReflacxDataset(data.Dataset):
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Dict],
         Tuple[torch.Tensor, Dict],
     ]:
+        if self.with_fixation:
+            imgs, fixs, targets = data
 
-        imgs, fixs, targets = data
+            imgs = list(img.to(device) for img in imgs)
+            fixs = list(fix.to(device) for fix in fixs)
+            targets = [map_target_to_device(t, device) for t in targets]
+
+            return (imgs, fixs, targets)
+
+        imgs, targets = data
 
         imgs = list(img.to(device) for img in imgs)
-        fixs = list(fix.to(device) for fix in fixs)
         targets = [map_target_to_device(t, device) for t in targets]
 
-        return (imgs, fixs, targets)
+        return (imgs, targets)
 
     def get_idxs_from_dicom_id(self, dicom_id: str) -> List[str]:
         return [

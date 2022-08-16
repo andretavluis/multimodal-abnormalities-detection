@@ -70,7 +70,6 @@ class TrainingInfo:
         self.previous_ap_model = None
         self.model_setup = model_setup
         self.start_t = datetime.now()
-        self.clinical_cond = "Without"
         self.end_t = None
         self.epoch = 0
         super(TrainingInfo).__init__()

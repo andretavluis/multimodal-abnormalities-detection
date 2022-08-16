@@ -8,7 +8,6 @@ class ModelSetup:
     # which mode of dataset is used during training.
     # [normal] - the images with same dicom_id will be seen as different instances.
     # [unified] - the images with same dicom_id will be seen as only one instance.
-    dataset_mode: str = "normal" # [normal, unified]
 
     # name of the model.
     name: str = None
