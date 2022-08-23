@@ -4,7 +4,7 @@ from typing import Dict, Tuple, Union
 from models.dynamic_loss import DynamicWeightedLoss
 from utils.train import get_optimiser
 
-from .build import create_model_from_setup
+from .build import create_multimodal_rcnn_model
 from .train import TrainedModels, TrainingInfo
 from torch.optim.optimizer import Optimizer
 from .setup import ModelSetup
@@ -17,7 +17,7 @@ def get_trained_model(
     with open(os.path.join("training_records", f"{model_select.value}.pkl"), "rb") as f:
         train_info: TrainingInfo = pickle.load(f)
 
-    model = create_model_from_setup(labels_cols, train_info.model_setup, **kwargs,)
+    model = create_multimodal_rcnn_model(labels_cols, train_info.model_setup, **kwargs,)
     model.to(device)
 
     cp: Dict = torch.load(

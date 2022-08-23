@@ -17,11 +17,16 @@ class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, image: Image.Image, target: Dict) -> Tuple[torch.Tensor, Dict]:
+    def __call__(self, image: Image.Image, target: Dict, fixation=None):
+
+        if not fixation is None:
+            for t in self.transforms:
+                image, target, fixation = t(image, target, fixation)
+                return image, target, fixation
+
         for t in self.transforms:
             image, target = t(image, target)
         return image, target
-
 
 class RandomHorizontalFlip(object):
     def __init__(self, prob: float):
@@ -43,10 +48,38 @@ class RandomHorizontalFlip(object):
                 target["keypoints"] = keypoints
         return image, target
 
+class HorizontalFlipTransform(object):
+    def __init__(self, prob: float):
+        self.prob: float = prob
+
+    def __call__(self, image: torch.Tensor, target: Dict, fixation=None) -> Tuple[torch.Tensor, Dict]:
+        if random.random() < self.prob:
+            _, width = image.shape[-2:]
+            image = image.flip(-1)
+            bbox = target["boxes"]
+            bbox[:, [0, 2]] = width - bbox[:, [2, 0]]
+            target["boxes"] = bbox
+            if "masks" in target:
+                target["masks"] = target["masks"].flip(-1)
+            if "keypoints" in target:
+                raise StopIteration()
+                keypoints = target["keypoints"]
+                keypoints = _flip_coco_person_keypoints(keypoints, width)
+                target["keypoints"] = keypoints
+
+        if not fixation is None:
+            fixation = fixation.flip(-1)
+            return image, target, fixation
+
+        return image, target
+
 
 class ToTensor(object):
-    def __call__(self, image: Image.Image, target: Dict) -> Tuple[torch.Tensor, Dict]:
+    def __call__(self, image: Image.Image, target: Dict, fixation=None) -> Tuple[torch.Tensor, Dict]:
         image = F.to_tensor(image)
+        if not fixation is None:
+            fixation = F.to_tensor(fixation)
+            return image, target, fixation
         return image, target
 
 
@@ -56,5 +89,5 @@ def get_transform(
     transforms = []
     transforms.append(ToTensor())
     if train:
-        transforms.append(RandomHorizontalFlip(0.5))
+        transforms.append(HorizontalFlipTransform(0.5))
     return Compose(transforms)

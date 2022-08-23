@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from models.setup import ModelSetup
 
-from .coco_utils import get_coco_api_from_dataset
+# from .coco_utils import get_coco_api_from_dataset
 from .coco_eval import CocoEvaluator
 
 from . import detect_utils
@@ -72,6 +72,7 @@ def xami_train_one_epoch(
     )
     header = f"Epoch: [{epoch}]"
 
+
     if evaluate_on_run:
         coco_evaluator = CocoEvaluator(coco, iou_types, params_dict)
 
@@ -88,7 +89,7 @@ def xami_train_one_epoch(
 
     for data in metric_logger.log_every(data_loader, print_freq, header):
         data = data_loader.dataset.prepare_input_from_data(data, device)
-        with torch.cuda.amp.autocast(enabled=False):
+        with torch.cuda.amp.autocast(enabled=True):
             loss_dict, outputs = model(*data[:-1], targets=data[-1])
             loss_dict = loss_multiplier(loss_dict,epoch)
 
@@ -135,6 +136,7 @@ def xami_train_one_epoch(
                 target["image_id"].item(): output
                 for target, output in zip(data[-1], outputs)
             }
+            
             coco_evaluator.update(res)
 
     metric_logger.synchronize_between_processes()

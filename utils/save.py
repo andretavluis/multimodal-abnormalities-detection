@@ -87,7 +87,7 @@ def save_checkpoint(
         (
             f"val_ar_{val_ar:.4f}_ap_{val_ap:.4f}_"
             + f"test_ar_{test_ar:.4f}_ap_{test_ap:.4f}_"
-            + f"epoch{train_info.epoch}_{train_info.clinical_cond}Clincal_{current_time_string}"
+            + f"epoch{train_info.epoch}_{current_time_string}"
             + f"_{train_info.model_setup.name}"
         )
         .replace(":", "_")
@@ -96,21 +96,20 @@ def save_checkpoint(
 
     train_info.final_model_path = model_path
 
-    saving_dict = {
-        "model_state_dict":model.state_dict()
-        
-    }
+    saving_dict = {"model_state_dict": model.state_dict()}
     if optimizer:
         saving_dict["optimizer_state_dict"] = optimizer.state_dict()
 
     if dynamic_weight:
-        saving_dict["dynamic_weight_state_dict"] =dynamic_weight.state_dict()
+        saving_dict["dynamic_weight_state_dict"] = dynamic_weight.state_dict()
 
+    os.makedirs("trained_models", exist_ok=True)
     torch.save(
         saving_dict,
         os.path.join(os.path.join("trained_models", train_info.final_model_path)),
     )
 
+    os.makedirs("training_records", exist_ok=True)
     # saving the train_info.
     with open(
         os.path.join("training_records", f"{train_info.final_model_path }.pkl"), "wb",
@@ -142,11 +141,11 @@ def check_best(
     iou_types: List[str],
     device: str,
     score_thres: Dict[str, float] = None,
-    dynamic_weight: nn.Module =None, 
-    test_ap_ar = None,
+    dynamic_weight: nn.Module = None,
+    test_ap_ar=None,
 ) -> Tuple[float, float, TrainingInfo]:
 
-    val_ar, val_ap = val_ap_ar['ar'],  val_ap_ar['ap']
+    val_ar, val_ap = val_ap_ar["ar"], val_ap_ar["ap"]
 
     ## Targeting the model with higher Average Recall and Average Precision.
     if val_ar > train_info.best_val_ar or val_ap > train_info.best_val_ap:
@@ -170,10 +169,10 @@ def check_best(
                 model=model,
                 val_ar=val_ar,
                 val_ap=val_ap,
-                test_ar=test_ap_ar['ar'],
-                test_ap=test_ap_ar['ap'],
+                test_ar=test_ap_ar["ar"],
+                test_ap=test_ap_ar["ap"],
                 optimizer=optim,
-                dynamic_weight=dynamic_weight
+                dynamic_weight=dynamic_weight,
             )
             train_info.best_ar_val_model_path = train_info.final_model_path
             train_info.best_val_ar = val_ar
@@ -186,8 +185,8 @@ def check_best(
                 model=model,
                 val_ar=val_ar,
                 val_ap=val_ap,
-                test_ar=test_ap_ar['ar'],
-                test_ap=test_ap_ar['ap'],
+                test_ar=test_ap_ar["ar"],
+                test_ap=test_ap_ar["ap"],
                 optimizer=optim,
                 dynamic_weight=dynamic_weight,
             )
@@ -220,7 +219,7 @@ def end_train(
     )
 
     # print model
-    if train_info.model_setup.use_early_stop_model:
+    if train_info.model_setup.save_early_stop_model:
         print_f.print_title(
             f"Best AP validation model has been saved to: [{train_info.best_ap_val_model_path}]"
         )
@@ -236,7 +235,6 @@ def end_train(
         coco=test_coco,
         iou_types=iou_types,
         score_thres=score_thres,
-        
     )
 
     test_ap_ar = get_ap_ar(train_info.test_evaluator)
@@ -246,10 +244,10 @@ def end_train(
         model=model,
         val_ar=last_val_ar,
         val_ap=last_val_ap,
-        test_ar=test_ap_ar['ar'],
-        test_ap=test_ap_ar['ap'],
+        test_ar=test_ap_ar["ar"],
+        test_ap=test_ap_ar["ap"],
         optimizer=optim,
-        dynamic_weight = dynamic_weight,
+        dynamic_weight=dynamic_weight,
     )
 
     print_f.print_title(
