@@ -3,6 +3,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from matplotlib  import image
+import sys
 
 
 def gaussian(x, sx, y=None, sy=None):
@@ -32,11 +33,11 @@ def gaussian(x, sx, y=None, sy=None):
     for i in range(x):
         for j in range(y):
             M[j, i] = np.exp(-1.0 * (((float(i)-xo)**2/(2*sx*sx)
-                                      ) + ((float(j)-yo)**2/(2*sy*sy))))
+                                    ) + ((float(j)-yo)**2/(2*sy*sy))))
 
     return M
 
-def get_heatmap(fix, dispsize, alpha=0.5, savefilename=None):
+def get_heatmap(fix, dispsize, pupil=False, alpha=0.5, savefilename=None):
     """Draws a heatmap of the provided fixations, optionally drawn over an
     image, and optionally allocating more weight to fixations with a higher
     duration.
@@ -103,13 +104,20 @@ def get_heatmap(fix, dispsize, alpha=0.5, savefilename=None):
                 vadj[1] = gwh - int(y-dispsize[1])
             # add adjusted Gaussian to the current heatmap
             try:
-                heatmap[y:y+vadj[1], x:x+hadj[1]] += gaus[vadj[0]:vadj[1], hadj[0]:hadj[1]] * fix['dur'][i]
+                if pupil:
+                    heatmap[y:y+vadj[1],x:x+hadj[1]] += gaus[vadj[0]:vadj[1],hadj[0]:hadj[1]] * fix['pupil'][i]
+                else:
+                    heatmap[y:y+vadj[1],x:x+hadj[1]] += gaus[vadj[0]:vadj[1],hadj[0]:hadj[1]] * fix['dur'][i]
             except:
                 # fixation was probably outside of display
                 pass
         else:
             # add Gaussian to the current heatmap
-            heatmap[y:y+gwh, x:x+gwh] += gaus * fix['dur'][i]
+            if pupil:
+                heatmap[int(y):int(y+gwh),int(x):int(x+gwh)] += gaus * fix['pupil'][i]
+            else:
+                heatmap[int(y):int(y+gwh),int(x):int(x+gwh)] += gaus * fix['dur'][i]
+
     # resize heatmap
     heatmap = heatmap[strt:dispsize[1]+strt, strt:dispsize[0]+strt]
     # remove zeros
@@ -123,6 +131,7 @@ def get_fixations_dict_from_fixation_df(fixation_df):
     fixation_df['x'] = fixation_df['x_position'] 
     fixation_df['y'] = fixation_df['y_position'] 
     fixation_df['duration']=fixation_df['timestamp_end_fixation'] - fixation_df['timestamp_start_fixation'] 
+    fixation_df['pupil'] =  fixation_df['pupil_area_normalized']
 
     # make saccade
     fixation_df['saccade'] = None
@@ -135,5 +144,22 @@ def get_fixations_dict_from_fixation_df(fixation_df):
         'y': np.array(fixation_df['y']),
         'dur': np.array(fixation_df['duration']),
         'dx': np.array(fixation_df['dx'][1:]),
-        'dy': np.array(fixation_df['dy'][1:])
+        'dy': np.array(fixation_df['dy'][1:]),
+        'pupil': np.array(fixation_df['pupil'])
     }
+
+# def process_image(np_image): # min-max normalization
+#     min = sys.maxsize
+#     max = -sys.maxsize
+
+#     if min > np_image.min():
+#         min = np_image.min()
+#     if max < np_image.max():
+#         max = np_image.max()    
+
+#     np_image = np_image.astype('float32')
+#     np_image -= min
+#     np_image /= (max - min)
+
+#     return np_image
+

@@ -71,11 +71,11 @@ def multimodal_maskrcnn_with_backbone(
         featmap_names=["0"], output_size=7, sampling_ratio=2
     )
 
-    fixations_backbone = (
+    heatmaps_backbone = (
         get_normal_backbone(
-            setup=setup, pretrained_backbone=setup.fixation_backbone_pretrained
+            setup=setup, pretrained_backbone=setup.heatmap_backbone_pretrained
         )
-        if setup.use_fixations
+        if setup.use_heatmaps
         else None
     )
 
@@ -85,7 +85,7 @@ def multimodal_maskrcnn_with_backbone(
         num_classes,
         rpn_anchor_generator=anchor_generator,
         box_roi_pool=roi_pooler,
-        fixation_backbone=fixations_backbone,
+        heatmap_backbone=heatmaps_backbone,
         **kwargs,
     )
 

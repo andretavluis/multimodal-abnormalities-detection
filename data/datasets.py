@@ -6,12 +6,14 @@ import torch.utils.data as data
 import pandas as pd
 import numpy as np
 import torch.utils.data as data
+import sys
 
 from typing import Callable, Dict, List, Tuple, Union
 from pathlib import Path
 from PIL import Image
 from copy import deepcopy
 from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import minmax_scale
 from .constants import (
     DEFAULT_REFLACX_BOX_COORD_COLS,
     DEFAULT_REFLACX_BOX_FIX_COLS,
@@ -33,10 +35,7 @@ class ReflacxDataset(data.Dataset):
     """
     Class to load the preprocessed REFLACX master sheet. There `.csv` files are required to run this class.
 
-    - `reflacx_cxr.csv`
-    - `reflacx_with_clinical.csv`
-    - `reflacx_u_df.csv`
-    - `reflacx_with_fixations.csv`
+    - `reflacx_for_eyetracking.csv'
 
     """
 
@@ -44,6 +43,7 @@ class ReflacxDataset(data.Dataset):
         self,
         XAMI_MIMIC_PATH: str,
         with_fixation: bool = False,
+        with_pupil: bool = False,
         bbox_to_mask: bool = False,
         split_str: str = None,
         transforms: Callable[[Image.Image, Dict], Tuple[torch.Tensor, Dict]] = None,
@@ -60,6 +60,7 @@ class ReflacxDataset(data.Dataset):
     ):
         # Data loading selections
         self.with_fixation = with_fixation
+        self.with_pupil = with_pupil
         self.split_str: str = split_str
 
         # Image related
@@ -86,7 +87,7 @@ class ReflacxDataset(data.Dataset):
         if not self.split_str is None:
             self.df: pd.DataFrame = self.df[self.df["split"] == self.split_str]
 
-        ## repalce the path with local mimic folder path.
+        ## replace the path with local mimic folder path.
         for p_col in path_cols:
             if p_col in self.df.columns:
                 if p_col == "bbox_paths":
@@ -209,6 +210,8 @@ class ReflacxDataset(data.Dataset):
         target["image_path"] = data["image_path"]
         target["fixations_path"] = data["fixations_path"]
 
+        img = minmax_scale(img)
+
         if self.bbox_to_mask:
             # generate masks from bboxes
             masks = torch.zeros((num_objs, img.height, img.width), dtype=torch.uint8)
@@ -216,14 +219,27 @@ class ReflacxDataset(data.Dataset):
                 b = b.int()
                 masks[i, b[1] : b[3], b[0] : b[2]] = 1
             target["masks"] = masks
-
             
         if self.with_fixation:
-            # get fixatinos
+            # get fixations
             fix = get_heatmap(
                 get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"])),
                 (data["image_size_x"], data["image_size_y"]),
             ).astype(np.float32)
+            fix = minmax_scale(fix)
+
+            img_t, target, fix_t = self.transforms(img, target, fix)
+
+            return img_t, fix_t.repeat(3, 1, 1), target
+        
+        if self.with_pupil:
+            # get pupil
+            fix = get_heatmap(
+                get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"])),
+                (data["image_size_x"], data["image_size_y"]), pupil = True
+            ).astype(np.float32)
+            fix = minmax_scale(fix)
+
             img_t, target, fix_t = self.transforms(img, target, fix)
             return img_t, fix_t.repeat(3, 1, 1), target
 
@@ -242,7 +258,7 @@ class ReflacxDataset(data.Dataset):
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Dict],
         Tuple[torch.Tensor, Dict],
     ]:
-        if self.with_fixation:
+        if self.with_fixation or self.with_pupil:
             imgs, fixs, targets = data
 
             imgs = list(img.to(device) for img in imgs)
@@ -266,3 +282,4 @@ class ReflacxDataset(data.Dataset):
 
     def get_image_path_from_dicom_id(self, dicom_id: str) -> List[str]:
         return self.df[self.df["dicom_id"] == dicom_id].iloc[0]["image_path"]
+

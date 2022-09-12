@@ -12,8 +12,10 @@ class ModelSetup:
     # name of the model.
     name: str = None
 
-    # setting up is fixation mask will passed into the model.
-    use_fixations: bool = False
+    # setting up is heatmap mask will passed into the model.
+    use_heatmaps: bool = False
+    with_fixations: bool = False
+    with_pupil: bool = False
 
     # this will save the model with best validation performance across each epochs.
     save_early_stop_model: bool  = True
@@ -41,7 +43,7 @@ class ModelSetup:
     # if the image backbone is pretrained.
     image_backbone_pretrained: bool = True
     # if the fixation backbone is pretrained.
-    fixation_backbone_pretrained: bool = False
+    heatmap_backbone_pretrained: bool = False
 
     image_size: int = 256
     backbone_out_channels: int = 64

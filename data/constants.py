@@ -1,35 +1,35 @@
 from typing import Dict, List
 
-XAMI_MIMIC_PATH = "D:\XAMI-MIMIC"
+XAMI_MIMIC_PATH = "E:\XAMI-MIMIC"
 SPREADSHEET_FOLDER = "spreadsheets"
 
-"""
-MIMIC
-"""
-DEFAULT_MIMIC_CLINICAL_NUM_COLS: List[str] = [
-    "age",
-    "temperature",
-    "heartrate",
-    "resprate",
-    "o2sat",
-    "sbp",
-    "dbp",
-    "pain",
-    "acuity",
-]
+# """
+# MIMIC
+# """
+# DEFAULT_MIMIC_CLINICAL_NUM_COLS: List[str] = [
+#     "age",
+#     "temperature",
+#     "heartrate",
+#     "resprate",
+#     "o2sat",
+#     "sbp",
+#     "dbp",
+#     "pain",
+#     "acuity",
+# ]
 
-DEFAULT_MIMIC_CLINICAL_CAT_COLS: List[str] = ["gender"]
+# DEFAULT_MIMIC_CLINICAL_CAT_COLS: List[str] = ["gender"]
 
 """
 REFLACX
 """
 
 DEFAULT_REFLACX_LABEL_COLS: List[str] = [
-    # "Enlarged cardiac silhouette",
+    "Enlarged cardiac silhouette",
     "Atelectasis",
     "Pleural abnormality",
     "Consolidation",
-    # "Pulmonary edema",
+    "Pulmonary edema",
     #  'Groundglass opacity', #6th disease.
 ]
 

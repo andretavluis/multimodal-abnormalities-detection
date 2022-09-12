@@ -28,32 +28,32 @@ def multimodal_maskrcnn_resnet_fpn(
         setup.image_backbone_pretrained, trainable_backbone_layers, 5, 3
     )
 
-    fixation_trainable_backbone_layers = torchvision.models.detection.backbone_utils._validate_trainable_layers(
-        setup.fixation_backbone_pretrained, trainable_backbone_layers, 5, 3
+    heatmap_trainable_backbone_layers = torchvision.models.detection.backbone_utils._validate_trainable_layers(
+        setup.heatmap_backbone_pretrained, trainable_backbone_layers, 5, 3
     )
 
     if setup.image_backbone_pretrained:
         print(f"Using pretrained backbone for images. {setup.backbone}")
 
-    if setup.fixation_backbone_pretrained:
-        print(f"Using pretrained backbone for fixations. {setup.backbone}")
+    if setup.heatmap_backbone_pretrained:
+        print(f"Using pretrained backbone for heatmaps. {setup.backbone}")
 
     image_backbone = torchvision.models.detection.backbone_utils.resnet_fpn_backbone(
         setup.backbone, setup.image_backbone_pretrained, trainable_layers=image_trainable_backbone_layers
     )
 
-    fixation_backbone = (
+    heatmap_backbone = (
         torchvision.models.detection.backbone_utils.resnet_fpn_backbone(
             setup.backbone,
-            setup.fixation_backbone_pretrained,
-            trainable_layers=fixation_trainable_backbone_layers, # We train all the layers.
+            setup.heatmap_backbone_pretrained,
+            trainable_layers=heatmap_trainable_backbone_layers, # We train all the layers.
         )
-        if setup.use_fixations
+        if setup.use_heatmaps
         else None
     )
 
     model = MultimodalMaskRCNN(
-        setup, image_backbone, num_classes, fixation_backbone=fixation_backbone, **kwargs,
+        setup, image_backbone, num_classes, heatmap_backbone=heatmap_backbone, **kwargs,
     )
 
     if pretrained:
@@ -88,13 +88,13 @@ def multimodal_maskrcnn_swin_fpn(
         backbone=SwinTransformer(**swin_args), fpn=FPN(**fpn_args),
     )
 
-    fixation_backbone = (
+    heatmap_backbone = (
         BackboneWithFPN(backbone=SwinTransformer(**swin_args), fpn=FPN(**fpn_args),)
-        if setup.use_fixations
+        if setup.use_heatmaps
         else None
     )
 
     model = MultimodalMaskRCNN(
-        setup, backbone, num_classes, fixation_backbone==fixation_backbone, **kwargs,
+        setup, backbone, num_classes, heatmap_backbone==heatmap_backbone, **kwargs,
     )
     return model

@@ -17,7 +17,7 @@ from torch.optim.optimizer import Optimizer
 
 cpu_device = torch.device("cpu")
 
-
+# IoU - Intersection over Union
 def get_iou_types(model: nn.Module, setup: ModelSetup) -> List[str]:
     model_without_ddp = model
     if isinstance(model, torch.nn.parallel.DistributedDataParallel):

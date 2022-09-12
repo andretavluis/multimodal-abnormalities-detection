@@ -47,14 +47,14 @@ class MultimodalGeneralizedRCNN(nn.Module):
         rpn,
         roi_heads,
         transform,
-        fixation_backbone=None,
+        heatmap_backbone=None,
     ):
 
         super(MultimodalGeneralizedRCNN, self).__init__()
 
         self.transform = transform
         self.backbone = backbone
-        self.fixation_backbone = fixation_backbone
+        self.heatmap_backbone = heatmap_backbone
 
         self.backbone_output_channels = self.backbone.out_channels
         self.rpn = rpn
@@ -209,7 +209,7 @@ class MultimodalGeneralizedRCNN(nn.Module):
                         img_features[k], clinical_features[k]
                     )
                 else:
-                    features[k] = self.fuse_convs[k](
+                    features[k] = self.build_fuse_convs[k](
                         self.fuse_feature_maps(img_features[k], clinical_features[k])
                     )
 
@@ -251,13 +251,13 @@ class MultimodalGeneralizedRCNN(nn.Module):
                     )
 
     def forward(
-        self, images, fixations=None, targets=None
+        self, images, heatmaps=None, targets=None
     ):
 
         """
         Args
             images (list[Tensor]): images to be processed
-            fixations (list[Tensor]): fixations to be processed
+            heatmaps (list[Tensor]): heatmaps to be processed
             targets (list[Dict[Tensor]]): ground-truth boxes present in the image (optional)
 
         Returns:
@@ -267,8 +267,8 @@ class MultimodalGeneralizedRCNN(nn.Module):
                 like `scores`, `labels` and `mask` (for Mask R-CNN models).
 
         """
-        if self.setup.use_fixations:
-            assert (not fixations is None) , "Expecting `fixation_masks` as input."
+        if self.setup.use_heatmaps:
+            assert (not heatmaps is None) , "Expecting `heatmaps_masks` as input."
 
         if self.training and targets is None:
             raise ValueError("In training mode, targets should be passed")
@@ -305,14 +305,14 @@ class MultimodalGeneralizedRCNN(nn.Module):
         if isinstance(img_features, torch.Tensor):
             img_features = OrderedDict([("0", img_features)])
 
-        if self.setup.use_fixations:
-            ### Deal with fixations ###
-            fixations = self.transform(fixations)[0]
-            fixations_features = self.backbone(fixations.tensors)
-            if isinstance(fixations_features, torch.Tensor):
-                fixations_features = OrderedDict([("0", fixations_features)])
+        if self.setup.use_heatmaps:
+            ### Deal with heatmaps ###
+            heatmaps = self.transform(heatmaps)[0]
+            heatmap_features = self.backbone(heatmaps.tensors)
+            if isinstance(heatmap_features, torch.Tensor):
+                heatmap_features = OrderedDict([("0", heatmap_features)])
 
-            features = self.fuse_features(img_features, fixations_features)
+            features = self.fuse_features(img_features, heatmap_features)
         else:
             features = img_features
 
@@ -493,7 +493,7 @@ class MultimodalFasterRCNN(MultimodalGeneralizedRCNN):
         box_batch_size_per_image=512,
         box_positive_fraction=0.25,
         bbox_reg_weights=None,
-        fixation_backbone=None,
+        heatmap_backbone=None,
     ):
 
         if not hasattr(backbone, "out_channels"):
@@ -601,7 +601,7 @@ class MultimodalFasterRCNN(MultimodalGeneralizedRCNN):
             rpn,
             roi_heads,
             transform,
-            fixation_backbone=fixation_backbone,
+            heatmap_backbone=heatmap_backbone,
         )
 
 
@@ -779,7 +779,7 @@ class MultimodalMaskRCNN(MultimodalFasterRCNN):
         mask_roi_pool=None,
         mask_head=None,
         mask_predictor=None,
-        fixation_backbone=None,
+        heatmap_backbone=None,
     ):
 
         assert isinstance(mask_roi_pool, (MultiScaleRoIAlign, type(None)))
@@ -824,7 +824,7 @@ class MultimodalMaskRCNN(MultimodalFasterRCNN):
             box_batch_size_per_image,
             box_positive_fraction,
             bbox_reg_weights,
-            fixation_backbone=fixation_backbone,
+            heatmap_backbone=heatmap_backbone,
         )
 
         if setup.use_mask:
