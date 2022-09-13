@@ -67,11 +67,10 @@ class HorizontalFlipTransform(object):
                 keypoints = _flip_coco_person_keypoints(keypoints, width)
                 target["keypoints"] = keypoints
 
-        if not fixation is None:
-            fixation = fixation.flip(-1)
-            return image, target, fixation
+            if not fixation is None:
+                fixation = fixation.flip(-1)
 
-        return image, target
+        return (image, target) if not fixation is None else (image, target, fixation)
 
 
 class ToTensor(object):
