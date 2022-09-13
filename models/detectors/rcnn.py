@@ -46,7 +46,7 @@ class MultimodalGeneralizedRCNN(nn.Module):
         backbone,
         rpn,
         roi_heads,
-        transform,
+        transform: GeneralizedRCNNTransform,
         fixation_backbone=None,
     ):
 
@@ -587,6 +587,7 @@ class MultimodalFasterRCNN(MultimodalGeneralizedRCNN):
             image_mean = [0.485, 0.456, 0.406]
         if image_std is None:
             image_std = [0.229, 0.224, 0.225]
+
         transform = GeneralizedRCNNTransform(
             min_size,
             max_size,

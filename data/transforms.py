@@ -4,6 +4,8 @@ from typing import  Callable, Dict, Tuple
 from PIL import Image
 from torchvision.transforms import functional as F
 
+
+
 def _flip_coco_person_keypoints(kps, width):
     flip_inds = [0, 2, 1, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15]
     flipped_data = kps[:, flip_inds]
@@ -53,7 +55,8 @@ class HorizontalFlipTransform(object):
         self.prob: float = prob
 
     def __call__(self, image: torch.Tensor, target: Dict, fixation=None) -> Tuple[torch.Tensor, Dict]:
-        if random.random() < self.prob:
+        flip = random.random() < self.prob
+        if flip:
             _, width = image.shape[-2:]
             image = image.flip(-1)
             bbox = target["boxes"]
@@ -62,16 +65,17 @@ class HorizontalFlipTransform(object):
             if "masks" in target:
                 target["masks"] = target["masks"].flip(-1)
             if "keypoints" in target:
-                raise StopIteration()
+                raise NotImplementedError("keypoints transformation is not implemented.")
                 keypoints = target["keypoints"]
                 keypoints = _flip_coco_person_keypoints(keypoints, width)
                 target["keypoints"] = keypoints
 
-        if not fixation is None:
-            fixation = fixation.flip(-1)
-            return image, target, fixation
+            if not fixation is None:
+                fixation = fixation.flip(-1)
+                return image, target, fixation
+            return image, target
 
-        return image, target
+        return (image, target) if not fixation is None else (image, target, fixation)
 
 
 class ToTensor(object):
