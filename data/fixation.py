@@ -127,39 +127,91 @@ def get_heatmap(fix, dispsize, pupil=False, alpha=0.5, savefilename=None):
 
     return heatmap
 
-def get_fixations_dict_from_fixation_df(fixation_df):
-    fixation_df['x'] = fixation_df['x_position'] 
-    fixation_df['y'] = fixation_df['y_position'] 
-    fixation_df['duration']=fixation_df['timestamp_end_fixation'] - fixation_df['timestamp_start_fixation'] 
-    fixation_df['pupil'] =  fixation_df['pupil_area_normalized']
 
-    # make saccade
-    fixation_df['saccade'] = None
-    for i in range(len(fixation_df)-1):
-        fixation_df.loc[i+1, 'dx'] = fixation_df.loc[i+1, "x"] - fixation_df.loc[i, "x"]
-        fixation_df.loc[i+1, 'dy'] = fixation_df.loc[i+1, "y"] - fixation_df.loc[i, "y"]
+def word_said_in_fix(fixation_df, timestamps_transcription_df):
 
-    return { 
-        'x': np.array(fixation_df['x']),
-        'y': np.array(fixation_df['y']),
+    for index1 in fixation_df.index:
+
+        words_said = ''
+        count_it = 0
+
+        for index2 in timestamps_transcription_df.index:
+            # considered words said 1 second before or after the word is said
+            tolerance = 1
+
+            start_fixation = fixation_df.at[index1, 'timestamp_start_fixation']
+            start_word = timestamps_transcription_df.at[index2, 'timestamp_start_word']-tolerance
+
+            end_fixation = fixation_df.at[index1, 'timestamp_end_fixation']
+            end_word = timestamps_transcription_df.at[index2, 'timestamp_end_word']+tolerance 
+
+            if start_fixation >= start_word and end_fixation <= end_word and count_it>0:
+                words_said = words_said + ' ' + timestamps_transcription_df.at[index2, 'word']
+
+            if start_fixation >= start_word and end_fixation <= end_word and count_it==0:
+                words_said = words_said + timestamps_transcription_df.at[index2, 'word']
+                count_it+=1
+
+            if words_said == '':
+                fixation_df.at[index1,'word'] = 'silence'
+
+            else:
+                fixation_df.at[index1,'word'] = words_said
+
+    return fixation_df
+
+
+def get_fixations_dict_from_fixation_df(fixation_df, timestamps_transcription_df = None, first_third = False, rad_silence=False, rad_speaking=False):
+
+    if first_third:
+        subindex = int(len(fixation_df) / 3)
+        fixation_df['duration']=fixation_df[:subindex]['timestamp_end_fixation'] - fixation_df[:subindex]['timestamp_start_fixation'] 
+
+
+        return { 
+        'x': np.array(fixation_df[:subindex]['x_position']),
+        'y': np.array(fixation_df[:subindex]['y_position'] ),
+        'dur': np.array(fixation_df[:subindex]['duration']),
+        # 'dx': np.array(fixation_df['dx'][1:]),
+        # 'dy': np.array(fixation_df['dy'][1:]),
+        'pupil': np.array(fixation_df[:subindex]['pupil_area_normalized'])
+        }
+
+    if rad_silence:
+
+        fixation_df = word_said_in_fix(fixation_df, timestamps_transcription_df)
+        fixation_df = fixation_df.loc[fixation_df['word']=='silence']
+        fixation_df['duration']=fixation_df['timestamp_end_fixation'] - fixation_df['timestamp_start_fixation'] 
+
+        return { 
+        'x': np.array(fixation_df['x_position']),
+        'y': np.array(fixation_df['y_position'] ),
         'dur': np.array(fixation_df['duration']),
-        'dx': np.array(fixation_df['dx'][1:]),
-        'dy': np.array(fixation_df['dy'][1:]),
-        'pupil': np.array(fixation_df['pupil'])
-    }
+        'pupil': np.array(fixation_df['pupil_area_normalized'])
+        }
 
-# def process_image(np_image): # min-max normalization
-#     min = sys.maxsize
-#     max = -sys.maxsize
+    if rad_speaking:
 
-#     if min > np_image.min():
-#         min = np_image.min()
-#     if max < np_image.max():
-#         max = np_image.max()    
+        fixation_df = word_said_in_fix(fixation_df, timestamps_transcription_df)
+        fixation_df = fixation_df.loc[fixation_df['word']!='silence']
+        fixation_df['duration']=fixation_df['timestamp_end_fixation'] - fixation_df['timestamp_start_fixation'] 
 
-#     np_image = np_image.astype('float32')
-#     np_image -= min
-#     np_image /= (max - min)
+        return { 
+        'x': np.array(fixation_df['x_position']),
+        'y': np.array(fixation_df['y_position'] ),
+        'dur': np.array(fixation_df['duration']),
+        'pupil': np.array(fixation_df['pupil_area_normalized'])
+        }
 
-#     return np_image
+    else:
+
+        fixation_df['duration']=fixation_df['timestamp_end_fixation'] - fixation_df['timestamp_start_fixation'] 
+
+        return { 
+            'x': np.array(fixation_df['x_position']),
+            'y': np.array(fixation_df['y_position']),
+            'dur': np.array(fixation_df['duration']),
+            'pupil': np.array(fixation_df['pupil_area_normalized'])
+        }
+
 

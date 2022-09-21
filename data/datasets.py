@@ -42,8 +42,11 @@ class ReflacxDataset(data.Dataset):
     def __init__(
         self,
         XAMI_MIMIC_PATH: str,
-        with_fixation: bool = False,
+        with_fixations: bool = False,
         with_pupil: bool = False,
+        with_1st_third_fixations: bool = False,
+        with_rad_silence: bool = False,
+        with_rad_speaking: bool = False,
         bbox_to_mask: bool = False,
         split_str: str = None,
         transforms: Callable[[Image.Image, Dict], Tuple[torch.Tensor, Dict]] = None,
@@ -59,8 +62,12 @@ class ReflacxDataset(data.Dataset):
         spreadsheets_folder=SPREADSHEET_FOLDER,
     ):
         # Data loading selections
-        self.with_fixation = with_fixation
+        self.with_fixations = with_fixations
         self.with_pupil = with_pupil
+        self.with_1st_third_fixations = with_1st_third_fixations
+        self.with_rad_silence = with_rad_silence
+        self.with_rad_speaking = with_rad_speaking
+
         self.split_str: str = split_str
 
         # Image related
@@ -210,8 +217,6 @@ class ReflacxDataset(data.Dataset):
         target["image_path"] = data["image_path"]
         target["fixations_path"] = data["fixations_path"]
 
-        img = minmax_scale(img)
-
         if self.bbox_to_mask:
             # generate masks from bboxes
             masks = torch.zeros((num_objs, img.height, img.width), dtype=torch.uint8)
@@ -220,13 +225,12 @@ class ReflacxDataset(data.Dataset):
                 masks[i, b[1] : b[3], b[0] : b[2]] = 1
             target["masks"] = masks
             
-        if self.with_fixation:
+        if self.with_fixations:
             # get fixations
             fix = get_heatmap(
                 get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"])),
                 (data["image_size_x"], data["image_size_y"]),
             ).astype(np.float32)
-            fix = minmax_scale(fix)
 
             img_t, target, fix_t = self.transforms(img, target, fix)
 
@@ -238,7 +242,40 @@ class ReflacxDataset(data.Dataset):
                 get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"])),
                 (data["image_size_x"], data["image_size_y"]), pupil = True
             ).astype(np.float32)
-            fix = minmax_scale(fix)
+
+            img_t, target, fix_t = self.transforms(img, target, fix)
+            return img_t, fix_t.repeat(3, 1, 1), target
+
+        if self.with_1st_third_fixations:
+            # get first third fixations
+            fix_dict = get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"]), first_third=True)
+
+            fix = get_heatmap(fix_dict, (data["image_size_x"], data["image_size_y"])).astype(np.float32)
+
+            img_t, target, fix_t = self.transforms(img, target, fix)
+            return img_t, fix_t.repeat(3, 1, 1), target
+
+        if self.with_rad_silence:
+            # get fixations when radiologist is in silence
+
+            #get timestamped transcriptions path
+            trans_path = data["fixations_path"].replace('fixations', 'timestamps_transcription')
+
+            fix_dict = get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"]), pd.read_csv(trans_path), rad_silence=True)
+
+            fix = get_heatmap(fix_dict, (data["image_size_x"], data["image_size_y"])).astype(np.float32)
+
+            img_t, target, fix_t = self.transforms(img, target, fix)
+            return img_t, fix_t.repeat(3, 1, 1), target
+
+        if self.with_rad_speaking:
+            # get fixations when radiologist is speaking
+
+            trans_path = data["fixations_path"].replace('fixations', 'timestamps_transcription')
+
+            fix_dict = get_fixations_dict_from_fixation_df(pd.read_csv(trans_path), rad_speaking=True)
+
+            fix = get_heatmap(fix_dict, (data["image_size_x"], data["image_size_y"])).astype(np.float32)
 
             img_t, target, fix_t = self.transforms(img, target, fix)
             return img_t, fix_t.repeat(3, 1, 1), target
@@ -258,7 +295,7 @@ class ReflacxDataset(data.Dataset):
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Dict],
         Tuple[torch.Tensor, Dict],
     ]:
-        if self.with_fixation or self.with_pupil:
+        if self.with_fixations or self.with_pupil or self.with_1st_third_fixations or self.with_rad_silence or self.with_rad_speaking:
             imgs, fixs, targets = data
 
             imgs = list(img.to(device) for img in imgs)

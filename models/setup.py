@@ -16,6 +16,9 @@ class ModelSetup:
     use_heatmaps: bool = False
     with_fixations: bool = False
     with_pupil: bool = False
+    with_1st_third_fixations: bool = False
+    with_rad_silence: bool = False
+    with_rad_speaking: bool = False
 
     # this will save the model with best validation performance across each epochs.
     save_early_stop_model: bool  = True
