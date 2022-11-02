@@ -25,6 +25,7 @@ class Compose(object):
                 return image, target, fixation
 
         for t in self.transforms:
+
             image, target = t(image, target)
         return image, target
 
@@ -67,10 +68,13 @@ class HorizontalFlipTransform(object):
                 keypoints = _flip_coco_person_keypoints(keypoints, width)
                 target["keypoints"] = keypoints
 
-            if not fixation is None:
-                fixation = fixation.flip(-1)
+            # if not fixation is None:
+            #     fixation = fixation.flip(-1)
 
-        return (image, target) if not fixation is None else (image, target, fixation)
+        if fixation is None:
+            return (image, target)
+        else:
+            return (image, target, fixation)
 
 
 class ToTensor(object):

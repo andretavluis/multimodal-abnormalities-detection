@@ -17,6 +17,7 @@ class ModelSetup:
     with_fixations: bool = False
     with_pupil: bool = False
     with_1st_third_fixations: bool = False
+    with_2nd_third_fixations: bool = False
     with_rad_silence: bool = False
     with_rad_speaking: bool = False
 
@@ -82,7 +83,7 @@ class ModelSetup:
     box_head_dropout_rate: float = 0
     fuse_depth: int = 4
 
-    fusion_strategy: str = "concat"  # ["add", "concat"]
+    fusion_strategy: str = "concat"  # ["add", "concat", "multiply"]
     fusion_residule: bool = False
 
     gt_in_train_till: int = 20

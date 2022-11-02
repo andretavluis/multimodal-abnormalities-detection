@@ -161,7 +161,7 @@ def word_said_in_fix(fixation_df, timestamps_transcription_df):
     return fixation_df
 
 
-def get_fixations_dict_from_fixation_df(fixation_df, timestamps_transcription_df = None, first_third = False, rad_silence=False, rad_speaking=False):
+def get_fixations_dict_from_fixation_df(fixation_df, timestamps_transcription_df = None, first_third = False, second_third=False, rad_silence=False, rad_speaking=False):
 
     if first_third:
         subindex = int(len(fixation_df) / 3)
@@ -175,6 +175,21 @@ def get_fixations_dict_from_fixation_df(fixation_df, timestamps_transcription_df
         # 'dx': np.array(fixation_df['dx'][1:]),
         # 'dy': np.array(fixation_df['dy'][1:]),
         'pupil': np.array(fixation_df[:subindex]['pupil_area_normalized'])
+        }
+
+    if second_third:
+        one_third = int(len(fixation_df) / 3)
+        two_thirds = int(len(fixation_df) / 3)
+        fixation_df['duration']=fixation_df[one_third:two_thirds]['timestamp_end_fixation'] - fixation_df[one_third:two_thirds]['timestamp_start_fixation'] 
+
+
+        return { 
+        'x': np.array(fixation_df[one_third:two_thirds]['x_position']),
+        'y': np.array(fixation_df[one_third:two_thirds]['y_position'] ),
+        'dur': np.array(fixation_df[one_third:two_thirds]['duration']),
+        # 'dx': np.array(fixation_df['dx'][1:]),
+        # 'dy': np.array(fixation_df['dy'][1:]),
+        'pupil': np.array(fixation_df[one_third:two_thirds]['pupil_area_normalized'])
         }
 
     if rad_silence:

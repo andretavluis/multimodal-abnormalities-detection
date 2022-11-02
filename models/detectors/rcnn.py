@@ -142,7 +142,7 @@ class MultimodalGeneralizedRCNN(nn.Module):
     def get_fuse_input_channel(self,):
         if self.setup.fusion_strategy == "concat":
             return self.backbone_output_channels * 2
-        elif self.setup.fusion_strategy == "add":
+        elif self.setup.fusion_strategy == "add" or self.setup.fusion_strategy == "multiply":
             return self.backbone_output_channels
         else:
             raise Exception(
@@ -195,6 +195,8 @@ class MultimodalGeneralizedRCNN(nn.Module):
             return torch.concat([img_feature, clinical_feature], axis=1)
         elif self.setup.fusion_strategy == "add":
             return img_feature + clinical_feature
+        elif self.setup.fusion_strategy == "multiply":
+            return torch.mul(img_feature, clinical_feature)
         else:
             raise Exception(
                 f"Unsupported fusion strategy: {self.setup.fusion_strategyn}"
@@ -204,7 +206,7 @@ class MultimodalGeneralizedRCNN(nn.Module):
         features = OrderedDict({})
         if self.setup.using_fpn:
             for k in self.feature_keys:
-                if self.setup.fusion_strategy == "add" and self.setup.fuse_depth == 0:
+                if (self.setup.fusion_strategy == "add" or self.setup.fusion_strategy == "multiply") and self.setup.fuse_depth == 0: 
                     features[k] = self.fuse_feature_maps(
                         img_features[k], clinical_features[k]
                     )
@@ -213,12 +215,12 @@ class MultimodalGeneralizedRCNN(nn.Module):
                         self.fuse_feature_maps(img_features[k], clinical_features[k])
                     )
 
-                if self.setup.fusion_strategy == "add" and self.setup.fusion_residule:
+                if (self.setup.fusion_strategy == "add" or self.setup.fusion_strategy == "multiply")  and self.setup.fusion_residule:
                     features[k] = features[k] + img_features[k] + clinical_features[k]
 
         else:
             k = "0"
-            if self.setup.fusion_strategy == "add" and self.setup.fuse_depth == 0:
+            if (self.setup.fusion_strategy == "add" or self.setup.fusion_strategy == "multiply")  and self.setup.fuse_depth == 0:
                 features[k] = self.fuse_feature_maps(
                     img_features[k], clinical_features[k]
                 )
@@ -228,7 +230,7 @@ class MultimodalGeneralizedRCNN(nn.Module):
                     self.fuse_feature_maps(img_features[k], clinical_features[k])
                 )
 
-            if self.setup.fusion_strategy == "add" and self.setup.fusion_residule:
+            if (self.setup.fusion_strategy == "add" or self.setup.fusion_strategy == "multiply")  and self.setup.fusion_residule:
                 features[k] = features[k] + img_features[k] + clinical_features[k]
 
         return features
@@ -313,6 +315,7 @@ class MultimodalGeneralizedRCNN(nn.Module):
                 heatmap_features = OrderedDict([("0", heatmap_features)])
 
             features = self.fuse_features(img_features, heatmap_features)
+
         else:
             features = img_features
 

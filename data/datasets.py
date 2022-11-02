@@ -12,8 +12,6 @@ from typing import Callable, Dict, List, Tuple, Union
 from pathlib import Path
 from PIL import Image
 from copy import deepcopy
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import minmax_scale
 from .constants import (
     DEFAULT_REFLACX_BOX_COORD_COLS,
     DEFAULT_REFLACX_BOX_FIX_COLS,
@@ -45,6 +43,7 @@ class ReflacxDataset(data.Dataset):
         with_fixations: bool = False,
         with_pupil: bool = False,
         with_1st_third_fixations: bool = False,
+        with_2nd_third_fixations: bool = False,
         with_rad_silence: bool = False,
         with_rad_speaking: bool = False,
         bbox_to_mask: bool = False,
@@ -65,6 +64,7 @@ class ReflacxDataset(data.Dataset):
         self.with_fixations = with_fixations
         self.with_pupil = with_pupil
         self.with_1st_third_fixations = with_1st_third_fixations
+        self.with_2nd_third_fixations = with_2nd_third_fixations
         self.with_rad_silence = with_rad_silence
         self.with_rad_speaking = with_rad_speaking
 
@@ -156,19 +156,35 @@ class ReflacxDataset(data.Dataset):
 
     def generate_bboxes_df(self, ellipse_df: pd.DataFrame,) -> pd.DataFrame:
         boxes_df = ellipse_df[self.box_fix_cols]
-
+        
         ## relabel repetitive columns.
         for k in self.repetitive_label_map.keys():
             boxes_df[k] = ellipse_df[
                 [l for l in self.repetitive_label_map[k] if l in ellipse_df.columns]
             ].any(axis=1)
+        
+        ## filtering out the diseases not in the label_cols
+        # boxes_df = boxes_df[boxes_df[self.labels_cols].any(axis=1)]
+
+        # ## get labels
+        # for index in boxes_df[self.labels_cols].index:  
+        #     count_labels = 0
+        #     for label in self.labels_cols:
+        #         if boxes_df[self.labels_cols].at[index, label] and count_labels==0:
+        #             count_labels +=1
+        #             boxes_df.at[index, "label"] = label
+        #         elif boxes_df[self.labels_cols].at[index, label] and count_labels>0:
+        #             boxes_df = boxes_df.append({'xmin':boxes_df.at[index,'xmin'], 'ymin':boxes_df.at[index,'ymin'], 'xmax':boxes_df.at[index,'xmax'], 
+        #                                         'ymax':boxes_df.at[index,'ymax'], 'xmax':boxes_df.at[index,'xmax'], 
+        #                                         'certainty':boxes_df.at[index,'certainty'], 'label':label}, 
+                                                # ignore_index=True)
 
         ## filtering out the diseases not in the label_cols
         boxes_df = boxes_df[boxes_df[self.labels_cols].any(axis=1)]
-
         ## get labels
         boxes_df["label"] = boxes_df[self.labels_cols].idxmax(axis=1)
-        boxes_df = boxes_df[self.box_fix_cols + ["label"]]
+
+        boxes_df = boxes_df[self.box_fix_cols + ["label"]]       
 
         return boxes_df
 
@@ -255,6 +271,15 @@ class ReflacxDataset(data.Dataset):
             img_t, target, fix_t = self.transforms(img, target, fix)
             return img_t, fix_t.repeat(3, 1, 1), target
 
+        if self.with_2nd_third_fixations:
+            # get second third fixations
+            fix_dict = get_fixations_dict_from_fixation_df(pd.read_csv(data["fixations_path"]), second_third=True)
+
+            fix = get_heatmap(fix_dict, (data["image_size_x"], data["image_size_y"])).astype(np.float32)
+
+            img_t, target, fix_t = self.transforms(img, target, fix)
+            return img_t, fix_t.repeat(3, 1, 1), target
+
         if self.with_rad_silence:
             # get fixations when radiologist is in silence
 
@@ -280,9 +305,11 @@ class ReflacxDataset(data.Dataset):
             img_t, target, fix_t = self.transforms(img, target, fix)
             return img_t, fix_t.repeat(3, 1, 1), target
 
-        img_t, target = self.transforms(img, target)
+        else:
+            
+            img_t, target = self.transforms(img, target)
 
-        return img_t, target
+            return img_t, target
 
     def prepare_input_from_data(
         self,
@@ -295,7 +322,7 @@ class ReflacxDataset(data.Dataset):
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Dict],
         Tuple[torch.Tensor, Dict],
     ]:
-        if self.with_fixations or self.with_pupil or self.with_1st_third_fixations or self.with_rad_silence or self.with_rad_speaking:
+        if self.with_fixations or self.with_pupil or self.with_1st_third_fixations or self.with_rad_silence or self.with_rad_speaking or self.with_2nd_third_fixations:
             imgs, fixs, targets = data
 
             imgs = list(img.to(device) for img in imgs)
