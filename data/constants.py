@@ -3,22 +3,22 @@ from typing import Dict, List
 XAMI_MIMIC_PATH = "E:\XAMI-MIMIC"
 SPREADSHEET_FOLDER = "spreadsheets"
 
-# """
-# MIMIC
-# """
-# DEFAULT_MIMIC_CLINICAL_NUM_COLS: List[str] = [
-#     "age",
-#     "temperature",
-#     "heartrate",
-#     "resprate",
-#     "o2sat",
-#     "sbp",
-#     "dbp",
-#     "pain",
-#     "acuity",
-# ]
+"""
+MIMIC
+"""
+DEFAULT_MIMIC_CLINICAL_NUM_COLS: List[str] = [
+    "age",
+    "temperature",
+    "heartrate",
+    "resprate",
+    "o2sat",
+    "sbp",
+    "dbp",
+    "pain",
+    "acuity",
+]
 
-# DEFAULT_MIMIC_CLINICAL_CAT_COLS: List[str] = ["gender"]
+DEFAULT_MIMIC_CLINICAL_CAT_COLS: List[str] = ["gender"]
 
 """
 REFLACX
@@ -81,7 +81,7 @@ DEFAULT_REFLACX_REPETITIVE_LABEL_MAP: Dict[str, List[str]] = {
 
 DEFAULT_REFLACX_BOX_COORD_COLS: List[str] = ["xmin", "ymin", "xmax", "ymax"]
 DEFAULT_REFLACX_BOX_FIX_COLS: List[str] = DEFAULT_REFLACX_BOX_COORD_COLS + ["certainty"]
-DEFAULT_REFLACX_PATH_COLS : List[str]= [
+DEFAULT_REFLACX_PATH_COLS: List[str] = [
     "image_path",
     "fixations_path",
     "anomaly_location_ellipses_path",
